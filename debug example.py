@@ -53,7 +53,28 @@ import numpy as np
 import optax
 from tn4ml.util import EarlyStopping 
 import jax.numpy as jnp
-from tn4ml.embeddings import OneHotEmbedding
+from tn4ml.embeddings import Embedding
+
+class OneHotEmbedding(Embedding):
+    """One-hot feature map."""
+    def __init__(self, num_states: int, **kwargs):
+        assert num_states >= 1
+        self.num_states = num_states
+        super().__init__(**kwargs)
+
+    @property
+    def dim(self) -> int:
+        return self.num_states
+
+    @property
+    def input_dim(self) -> int:
+        return 1
+
+    def __call__(self, x: int) -> jnp.ndarray:
+        x_int = np.round(x).astype(int)
+        one_hot = jnp.zeros(self.num_states)
+        one_hot = one_hot.at[x_int].set(1.0)
+        return one_hot
 
 # Initialize MPS
 max_bond_dim = 16
@@ -89,7 +110,7 @@ def identity_3d_cubical(shape, backend='numpy'):
         xp = np
 
     def _identity_rule(i, j, k):
-        return xp.where(i == j == k, 1, 0)
+        return xp.where(i == j, 1, 0)
 
     return xp.fromfunction(
         xp.vectorize(_identity_rule, otypes=[float]),
@@ -115,7 +136,7 @@ train_type = 0 # TrainingType.UNSUPERVISED
 
 embedding = OneHotEmbedding(num_states=4)
 learning_rate = 1e-4
-earlystop = EarlyStopping(min_delta=0, patience=10, monitor='loss', mode='min')
+earlystop = EarlyStopping(min_delta=0, patience=2, monitor='loss', mode='min')
 device = 'cpu'
 
 model.configure(optimizer=optimizer, strategy=strategy, loss=loss, train_type=train_type, learning_rate=learning_rate, device=device)
